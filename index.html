@@ -11,12 +11,11 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- DataTables 2.0.8 CSS -->
-  <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.tailwindcss.css">
+  <!-- DataTables 1.13.7 CSS -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
 
-  <!-- DataTables 2.0.8 JS -->
-  <script src="https://cdn.datatables.net/2.0.8/js/dataTables.js"></script>
-  <script src="https://cdn.datatables.net/2.0.8/js/dataTables.tailwindcss.js"></script>
+  <!-- DataTables 1.13.7 JS -->
+  <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 
   <!-- jsPDF + html2canvas for PDF export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -24,15 +23,13 @@
 
   <style>
     body { font-family: system-ui, sans-serif; }
-    .dataTables_wrapper .dataTables_filter input {
-      @apply border rounded px-2 py-1 text-sm;
-    }
-    .dataTables_wrapper .dataTables_length select {
-      @apply border rounded px-2 py-1 text-sm;
-    }
-    #csv-table th { @apply bg-blue-100 text-blue-800; }
-    #csv-table td { @apply text-right; }
-    #csv-table td:first-child { @apply text-left font-medium; }
+    #csv-table { width: 100% !important; }
+    #csv-table th { background-color: #dbeafe; color: #1e40af; padding: 12px 8px; text-align: left; font-weight: 600; }
+    #csv-table td { padding: 12px 8px; text-align: right; border-bottom: 1px solid #e5e7eb; }
+    #csv-table td:first-child { text-align: left; font-weight: 500; }
+    #csv-table .dataTables_wrapper .dataTables_filter input { border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.5rem; margin-left: 0.5rem; }
+    #csv-table .dataTables_wrapper .dataTables_length select { border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.25rem; }
+    .dataTables_wrapper { margin-top: 1rem; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -77,7 +74,7 @@
         </button>
       </div>
       <div class="overflow-x-auto">
-        <table id="csv-table" class="min-w-full table-auto text-sm">
+        <table id="csv-table" class="display nowrap text-sm">
           <thead>
             <tr>
               <th>Month</th>
@@ -165,8 +162,8 @@
 
         document.getElementById('last-updated').textContent = latest.month;
 
-        // === DataTable with Sort + Filter ===
-        const table = new DataTable('#csv-table', {
+        // === DataTable with Sort + Filter (Fixed with v1.13.7) ===
+        $('#csv-table').DataTable({
           data: validData.map(d => [
             d.month,
             d.dem.toLocaleString(),
@@ -185,7 +182,9 @@
           lengthMenu: [12, 24, 36, validData.length],
           order: [[0, 'desc']],
           responsive: true,
-          language: { search: "Filter:" }
+          searching: true,
+          language: { search: "Filter:" },
+          dom: 'lfrtip'
         });
 
         // === PDF Export Button ===
