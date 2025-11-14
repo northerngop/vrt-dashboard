@@ -5,15 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Delaware Voter Registration Dashboard</title>
 
-  <!-- Plotly.js (CDN) -->
+  <!-- Plotly.js -->
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 
-  <!-- Tailwind CSS (CDN) -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- DataTables (for sortable/filterable table) -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.tailwindcss.css">
+  <script src="https://cdn.datatables.net/2.0.8/js/dataTables.js"></script>
+  <script src="https://cdn.datatables.net/2.0.8/js/dataTables.tailwindcss.js"></script>
+
+  <!-- jsPDF + html2canvas for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <style>
     body { font-family: system-ui, sans-serif; }
-    .plotly-graph-div { width: 100% !important; }
+    .dataTables_wrapper .dataTables_filter input {
+      @apply border rounded px-2 py-1 text-sm;
+    }
+    .dataTables_wrapper .dataTables_length select {
+      @apply border rounded px-2 py-1 text-sm;
+    }
+    #csv-table th { @apply bg-blue-100 text-blue-800; }
+    #csv-table td { @apply text-right; }
+    #csv-table td:first-child { @apply text-left font-medium; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -23,7 +40,7 @@
     <!-- Header -->
     <header class="text-center mb-8">
       <h1 class="text-4xl font-bold text-blue-900">Delaware Voter Registration Dashboard</h1>
-      <p class="text-lg text-gray-600 mt-2">Interactive trends from 2021–2025</p>
+      <p class="text-lg text-gray-600 mt-2">Interactive trends • Sortable table • PDF export</p>
     </header>
 
     <!-- Summary Cards -->
@@ -49,26 +66,31 @@
       </div>
     </div>
 
-    <!-- CSV Table -->
+    <!-- Sortable & Filterable Table + PDF Button -->
     <div class="bg-white p-6 rounded-lg shadow mb-8">
-      <h2 class="text-xl font-semibold mb-4">Monthly Registration Totals (CSV Data)</h2>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Monthly Registration Totals</h2>
+        <button id="export-pdf" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          Export PDF
+        </button>
+      </div>
       <div class="overflow-x-auto">
-        <table id="csv-table" class="min-w-full table-auto border-collapse text-sm">
+        <table id="csv-table" class="min-w-full table-auto text-sm">
           <thead>
-            <tr class="bg-blue-100 text-blue-800">
-              <th class="px-4 py-2 text-left font-medium">Month</th>
-              <th class="px-4 py-2 text-right font-medium">Democrats</th>
-              <th class="px-4 py-2 text-right font-medium">Republicans</th>
-              <th class="px-4 py-2 text-right font-medium">Other</th>
-              <th class="px-4 py-2 text-right font-medium">Total</th>
+            <tr>
+              <th>Month</th>
+              <th>Democrats</th>
+              <th>Republicans</th>
+              <th>Other</th>
+              <th>Total</th>
             </tr>
           </thead>
-          <tbody class="text-gray-700"></tbody>
+          <tbody></tbody>
         </table>
       </div>
     </div>
 
-    <!-- Source Link -->
+    <!-- Footer -->
     <footer class="text-center text-sm text-gray-600">
       <p>
         Data from 
@@ -82,10 +104,6 @@
       </p>
     </footer>
   </div>
-
-  <!-- Plotly.js -->
-  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
 
   <script>
     // === 1. Load CSV ===
@@ -145,29 +163,72 @@
 
         document.getElementById('last-updated').textContent = latest.month;
 
-        // === CSV Table ===
-        const tbody = document.querySelector('#csv-table tbody');
-        tbody.innerHTML = '';
-        validData.forEach(d => {
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-gray-50 border-b';
-          tr.innerHTML = `
-            <td class="px-4 py-2 font-medium">${d.month}</td>
-            <td class="px-4 py-2 text-right">${d.dem.toLocaleString()}</td>
-            <td class="px-4 py-2 text-right">${d.rep.toLocaleString()}</td>
-            <td class="px-4 py-2 text-right">${d.other.toLocaleString()}</td>
-            <td class="px-4 py-2 text-right font-semibold">${d.all.toLocaleString()}</td>
-          `;
-          tbody.appendChild(tr);
+        // === DataTable with Sort + Filter ===
+        const table = new DataTable('#csv-table', {
+          data: validData.map(d => [
+            d.month,
+            d.dem.toLocaleString(),
+            d.rep.toLocaleString(),
+            d.other.toLocaleString(),
+            d.all.toLocaleString()
+          ]),
+          columns: [
+            { title: "Month" },
+            { title: "Democrats", className: "text-right" },
+            { title: "Republicans", className: "text-right" },
+            { title: "Other", className: "text-right" },
+            { title: "Total", className: "text-right font-semibold" }
+          ],
+          pageLength: 12,
+          lengthMenu: [12, 24, 36, validData.length],
+          order: [[0, 'desc']],
+          responsive: true,
+          language: { search: "Filter:" }
         });
 
-        // === Graphs (same as before) ===
+        // === PDF Export Button ===
+        document.getElementById('export-pdf').addEventListener('click', () => {
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF('p', 'mm', 'a4');
+          let y = 20;
+
+          // Title
+          pdf.setFontSize(16);
+          pdf.text("Delaware Voter Registration Report", 105, y, { align: 'center' });
+          y += 10;
+          pdf.setFontSize(10);
+          pdf.text(`Generated: ${new Date().toLocaleString()}`, 105, y, { align: 'center' });
+          y += 15;
+
+          // Add table
+          html2canvas(document.querySelector('#csv-table'), { scale: 2 }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const imgWidth = 190;
+            const pageHeight = 295;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            let heightLeft = imgHeight;
+
+            let position = y;
+            pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+
+            while (heightLeft >= 0) {
+              position = heightLeft - imgHeight;
+              pdf.addPage();
+              pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+              heightLeft -= pageHeight;
+            }
+
+            pdf.save('delaware-voter-registration.pdf');
+          });
+        });
+
+        // === Graphs ===
         const dates = validData.map(d => d.date);
         const demPct = validData.map(d => d.dem / d.all * 100);
         const repPct = validData.map(d => d.rep / d.all * 100);
         const othPct = validData.map(d => d.other / d.all * 100);
 
-        // Trend line helper
         function trendLine(values) {
           const n = values.length;
           const x = Array.from({length: n}, (_, i) => i);
@@ -180,7 +241,6 @@
           return x.map(i => slope * i + intercept);
         }
 
-        // Graph 1: Totals + Trend
         Plotly.newPlot('graph-totals', [
           { x: dates, y: validData.map(d => d.all), name: 'Total', line: {color: 'black', width: 3} },
           { x: dates, y: trendLine(validData.map(d => d.all)), name: 'Total Trend', line: {dash: 'dot', color: 'black'} },
@@ -197,7 +257,6 @@
           hovermode: 'x unified'
         });
 
-        // Graph 2: Stacked %
         Plotly.newPlot('graph-pct-stacked', [
           { x: dates, y: demPct, name: 'Democratic %', stackgroup: 'pct', fillcolor: '#1f77b4' },
           { x: dates, y: repPct, name: 'Republican %', stackgroup: 'pct', fillcolor: '#d62728' },
@@ -207,7 +266,6 @@
           yaxis: { title: 'Percentage (%)', range: [0, 100] }
         });
 
-        // Graph 3: % Change
         const changes = validData.slice(1).map((d, i) => ({
           date: d.date,
           dem: (d.dem - validData[i].dem) / validData[i].dem * 100,
@@ -227,7 +285,6 @@
           shapes: [{ type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 0, y1: 0, line: {color: 'gray', dash: 'dash'} }]
         });
 
-        // Graph 4: Party % Lines
         Plotly.newPlot('graph-party-pct', [
           { x: dates, y: demPct, name: 'Democratic %', line: {color: '#1f77b4'} },
           { x: dates, y: repPct, name: 'Republican %', line: {color: '#d62728'} },
