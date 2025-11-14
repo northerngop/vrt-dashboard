@@ -11,8 +11,10 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- DataTables (for sortable/filterable table) -->
+  <!-- DataTables 2.0.8 CSS -->
   <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.tailwindcss.css">
+
+  <!-- DataTables 2.0.8 JS -->
   <script src="https://cdn.datatables.net/2.0.8/js/dataTables.js"></script>
   <script src="https://cdn.datatables.net/2.0.8/js/dataTables.tailwindcss.js"></script>
 
@@ -187,7 +189,7 @@
         });
 
         // === PDF Export Button ===
-        document.getElementById('export-pdf').addEventListener('click', () => {
+        document.getElementById('export-pdf').addEventListener('click', async () => {
           const { jsPDF } = window.jspdf;
           const pdf = new jsPDF('p', 'mm', 'a4');
           let y = 20;
@@ -200,27 +202,26 @@
           pdf.text(`Generated: ${new Date().toLocaleString()}`, 105, y, { align: 'center' });
           y += 15;
 
-          // Add table
-          html2canvas(document.querySelector('#csv-table'), { scale: 2 }).then(canvas => {
-            const imgData = canvas.toDataURL('image/png');
-            const imgWidth = 190;
-            const pageHeight = 295;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            let heightLeft = imgHeight;
+          // Add table as image
+          const canvas = await html2canvas(document.querySelector('#csv-table'), { scale: 2 });
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 190;
+          const pageHeight = 295;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          let heightLeft = imgHeight;
 
-            let position = y;
+          let position = y;
+          pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+
+          while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
             pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
             heightLeft -= pageHeight;
+          }
 
-            while (heightLeft >= 0) {
-              position = heightLeft - imgHeight;
-              pdf.addPage();
-              pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-              heightLeft -= pageHeight;
-            }
-
-            pdf.save('delaware-voter-registration.pdf');
-          });
+          pdf.save('delaware-voter-registration.pdf');
         });
 
         // === Graphs ===
