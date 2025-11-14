@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Delaware Voter Registration Dashboard</title>
+
+  <!-- Plotly.js (CDN) -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+  <!-- Tailwind CSS (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body { font-family: system-ui, sans-serif; }
+    .plotly-graph-div { width: 100% !important; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+  <div class="container mx-auto p-6 max-w-7xl">
+
+    <header class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-blue-900">Delaware Voter Registration Dashboard</h1>
+      <p class="text-lg text-gray-600 mt-2">Interactive trends from 2021–2025</p>
+    </header>
+
+    <!-- Summary Cards -->
+    <div id="summary" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8"></div>
+
+    <!-- Graphs -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-4">Total Voters with Trend Lines</h2>
+        <div id="graph-totals"></div>
+      </div>
+
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-4">Party Share (% of Total)</h2>
+        <div id="graph-pct-stacked"></div>
+      </div>
+
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-4">Month-to-Month % Change</h2>
+        <div id="graph-pct-change"></div>
+      </div>
+
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-4">Party % Over Time</h2>
+        <div id="graph-party-pct"></div>
+      </div>
+    </div>
+
+    <footer class="mt-12 text-center text-sm text-gray-500">
+      Data from <code>vrt.csv</code> • Updated: <span id="last-updated"></span>
+    </footer>
+  </div>
+
+  <script>
+  // === 1. Load and Parse CSV ===
+  fetch('vrt.csv')
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.text();
+    })
+    .then(text => {
+      console.log("CSV loaded:", text.slice(0, 200) + "..."); // DEBUG
+
+      const rows = text.trim().split('\n').map(line => line.split(','));
+      const headers = rows[0];
+      const data = rows.slice(1).map(row => {
+        const obj = {};
+        headers.forEach((h, i) => obj[h.trim()] = row[i].trim());
+        return obj;
+      });
+
+      // === 2. Parse Dates & Numbers ===
+      data.forEach(d => {
+        // d.month is "2021-01-01" → use directly
+        d.date = new Date(d.month);
+        if (isNaN(d.date)) {
+          console.error("Invalid date:", d.month);
+          return;
+        }
+        d.dem = +d.dem || 0;
+        d.rep = +d.rep || 0;
+        d.other = +d.other || 0;
+        d.all = +d.all || 0;
+      });
+
+      // Filter out invalid dates
+      const validData = data.filter(d => !isNaN(d.date));
+      if (validData.length === 0) throw new Error("No valid dates in CSV");
+
+      console.log("Parsed data:", validData.slice(0, 2)); // DEBUG
+
+      // === 3. Summary Cards ===
+      const latest = validData[validData.length - 1];
+      const first = validData[0];
+      const growth = ((latest.all - first.all) / first.all * 100).toFixed(2);
+
+      document.getElementById('summary').innerHTML = `
+        <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-5 rounded-xl shadow-lg">
+          <div class="text-sm opacity-90">Total Voters</div>
+          <div class="text-3xl font-bold">${latest.all.toLocaleString()}</div>
+          <div class="text-xs opacity-80">+${growth}% since ${first.month}</div>
+        </div>
+        <div class="bg-gradient-to-br from-cyan-500 to-blue-600 text-white p-5 rounded-xl shadow-lg">
+          <div class="text-sm opacity-90">Democrats</div>
+          <div class="text-3xl font-bold">${latest.dem.toLocaleString()}</div>
+          <div class="text-xs opacity-80">${(latest.dem/latest.all*100).toFixed(1)}%</div>
+        </div>
+        <div class="bg-gradient-to-br from-red-500 to-red-600 text-white p-5 rounded-xl shadow-lg">
+          <div class="text-sm opacity-90">Republicans</div>
+          <div class="text-3xl font-bold">${latest.rep.toLocaleString()}</div>
+          <div class="text-xs opacity-80">${(latest.rep/latest.all*100).toFixed(1)}%</div>
+        </div>
+        <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-5 rounded-xl shadow-lg">
+          <div class="text-sm opacity-90">Other</div>
+          <div class="text-3xl font-bold">${latest.other.toLocaleString()}</div>
+          <div class="text-xs opacity-80">${(latest.other/latest.all*100).toFixed(1)}%</div>
+        </div>
+      `;
+
+      document.getElementById('last-updated').textContent = latest.month;
+
+      // === 4. Graph 1: Totals + Trend ===
+      const dates = validData.map(d => d.date);
+      const totalTrend = trendLine(validData.map(d => d.all));
+      const demTrend = trendLine(validData.map(d => d.dem));
+      const repTrend = trendLine(validData.map(d => d.rep));
+      const othTrend = trendLine(validData.map(d => d.other));
+
+      Plotly.newPlot('graph-totals', [
+        { x: dates, y: validData.map(d => d.all), name: 'Total', line: {color: 'black', width: 3} },
+        { x: dates, y: totalTrend, name: 'Total Trend', line: {dash: 'dot', color: 'black'} },
+        { x: dates, y: validData.map(d => d.dem), name: 'Democratic', line: {color: '#1f77b4'} },
+        { x: dates, y: demTrend, name: 'Dem Trend', line: {dash: 'dot', color: '#1f77b4'} },
+        { x: dates, y: validData.map(d => d.rep), name: 'Republican', line: {color: '#d62728'} },
+        { x: dates, y: repTrend, name: 'Rep Trend', line: {dash: 'dot', color: '#d62728'} },
+        { x: dates, y: validData.map(d => d.other), name: 'Other', line: {color: '#2ca02c'} },
+        { x: dates, y: othTrend, name: 'Other Trend', line: {dash: 'dot', color: '#2ca02c'} }
+      ], {
+        title: 'Voter Registration Totals with Trend Lines',
+        xaxis: { title: 'Date' },
+        yaxis: { title: 'Voters' },
+        hovermode: 'x unified'
+      });
+
+      // === 5. Graph 2: Stacked % ===
+      const demPct = validData.map(d => d.dem / d.all * 100);
+      const repPct = validData.map(d => d.rep / d.all * 100);
+      const othPct = validData.map(d => d.other / d.all * 100);
+
+      Plotly.newPlot('graph-pct-stacked', [
+        { x: dates, y: demPct, name: 'Democratic %', stackgroup: 'pct', fillcolor: '#1f77b4' },
+        { x: dates, y: repPct, name: 'Republican %', stackgroup: 'pct', fillcolor: '#d62728' },
+        { x: dates, y: othPct, name: 'Other %', stackgroup: 'pct', fillcolor: '#2ca02c' }
+      ], {
+        title: 'Party Share of Total (%)',
+        yaxis: { title: 'Percentage (%)', range: [0, 100] }
+      });
+
+      // === 6. Graph 3: % Change ===
+      const changes = validData.slice(1).map((d, i) => ({
+        date: d.date,
+        dem: (d.dem - validData[i].dem) / validData[i].dem * 100,
+        rep: (d.rep - validData[i].rep) / validData[i].rep * 100,
+        other: (d.other - validData[i].other) / validData[i].other * 100,
+        all: (d.all - validData[i].all) / validData[i].all * 100
+      }));
+
+      Plotly.newPlot('graph-pct-change', [
+        { x: changes.map(c => c.date), y: changes.map(c => c.dem), name: 'Dem %Δ', line: {color: '#1f77b4'} },
+        { x: changes.map(c => c.date), y: changes.map(c => c.rep), name: 'Rep %Δ', line: {color: '#d62728'} },
+        { x: changes.map(c => c.date), y: changes.map(c => c.other), name: 'Other %Δ', line: {color: '#2ca02c'} },
+        { x: changes.map(c => c.date), y: changes.map(c => c.all), name: 'Total %Δ', line: {color: 'black', width: 2} }
+      ], {
+        title: 'Month-to-Month % Change',
+        yaxis: { title: '% Change' },
+        shapes: [{ type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 0, y1: 0, line: {color: 'gray', dash: 'dash'} }]
+      });
+
+      // === 7. Graph 4: Party % Lines ===
+      Plotly.newPlot('graph-party-pct', [
+        { x: dates, y: demPct, name: 'Democratic %', line: {color: '#1f77b4'} },
+        { x: dates, y: repPct, name: 'Republican %', line: {color: '#d62728'} },
+        { x: dates, y: othPct, name: 'Other %', line: {color: '#2ca02c'} }
+      ], {
+        title: 'Party Percentage Over Time',
+        yaxis: { title: 'Percentage (%)', range: [0, 100] }
+      });
+
+      // === Helper: Linear Trend ===
+      function trendLine(values) {
+        const n = values.length;
+        const x = Array.from({length: n}, (_, i) => i);
+        const sumX = x.reduce((a,b) => a+b, 0);
+        const sumY = values.reduce((a,b) => a+b, 0);
+        const sumXY = x.reduce((s, xi, i) => s + xi * values[i], 0);
+        const sumX2 = x.reduce((s, xi) => s + xi*xi, 0);
+        const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+        const intercept = (sumY - slope * sumX) / n;
+        return x.map(i => slope * i + intercept);
+      }
+
+    })
+    .catch(err => {
+      console.error("Dashboard error:", err);
+      document.body.innerHTML = `<div class="p-8 text-red-600 text-center text-xl">Error: ${err.message}<br><br>Check Console (F12) for details.</div>`;
+    });
+</script>
+
+</body>
+</html>
