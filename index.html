@@ -165,30 +165,31 @@
 
         document.getElementById('last-updated').textContent = latest.month;
 
-        // === DataTable with Sort + Filter (Fixed with v1.13.7) ===
-        $('#csv-table').DataTable({
-          data: validData.map(d => [
-            d.month,
-            d.dem.toLocaleString(),
-            d.rep.toLocaleString(),
-            d.other.toLocaleString(),
-            d.all.toLocaleString()
-          ]),
-          columns: [
-            { title: "Month" },
-            { title: "Democrats", className: "text-right" },
-            { title: "Republicans", className: "text-right" },
-            { title: "Other", className: "text-right" },
-            { title: "Total", className: "text-right font-semibold" }
-          ],
-          pageLength: 12,
-          lengthMenu: [12, 24, 36, validData.length],
-          order: [[0, 'desc']],
-          responsive: true,
-          searching: true,
-          language: { search: "Filter:" },
-          dom: 'lfrtip'
-        });
+// === DataTable: Full Table, No Paging ===
+$('#csv-table').DataTable({
+  data: validData.map(d => [
+    d.month,
+    d.dem.toLocaleString(),
+    d.rep.toLocaleString(),
+    d.other.toLocaleString(),
+    d.all.toLocaleString()
+  ]),
+  columns: [
+    { title: "Month" },
+    { title: "Democrats", className: "text-right" },
+    { title: "Republicans", className: "text-right" },
+    { title: "Other", className: "text-right" },
+    { title: "Total", className: "text-right font-semibold" }
+  ],
+  paging: false,           // NO PAGING
+  order: [[0, 'desc']],    // Sort by date descending
+  responsive: true,
+  searching: true,
+  info: false,             // Hide "Showing 1 to X of Y"
+  lengthChange: false,     // Hide "Show X entries"
+  language: { search: "Filter:" },
+  dom: 'frtip'             // Only show Filter, Table
+});
 
         // === PDF Export Button ===
         document.getElementById('export-pdf').addEventListener('click', async () => {
