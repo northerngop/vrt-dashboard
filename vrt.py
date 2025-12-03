@@ -215,7 +215,7 @@ def main() -> None:
             [(2022, m, 1) for m in range(1, 10)] + [(2022, 10, 2), (2022, 11, 1), (2022, 12, 1)] +
             [(2023, m, 1) for m in range(1, 13)] +
             [(2024, m, 1) for m in range(1, 13)] +
-            [(2025, m, 1) for m in range(1, 12)]
+            [(2025, m, 1) for m in range(1, 13)]
         )
 
         today = datetime.now()
@@ -247,7 +247,8 @@ if __name__ == "__main__":
 
     # Start server in background (non-blocking)
     import subprocess
-    subprocess.Popen(["python3", "-m", "http.server", "8001"])
+    subprocess.Popen(["killall", "Python"])
+    subprocess.Popen(["python3", "-m", "http.server", "8000"])
 
     # Open dashboard
-    webbrowser.open("http://localhost:8000/vrt_dashboard.html")
+    webbrowser.open("http://localhost:8000/index.html")
