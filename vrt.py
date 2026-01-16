@@ -215,7 +215,8 @@ def main() -> None:
             [(2022, m, 1) for m in range(1, 10)] + [(2022, 10, 2), (2022, 11, 1), (2022, 12, 1)] +
             [(2023, m, 1) for m in range(1, 13)] +
             [(2024, m, 1) for m in range(1, 13)] +
-            [(2025, m, 1) for m in range(1, 13)]
+            [(2025, m, 1) for m in range(1, 13)] +
+            [(2026, m, 1) for m in range(1, 13)]
         )
 
         today = datetime.now()
